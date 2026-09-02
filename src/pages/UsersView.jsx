@@ -1,0 +1,12 @@
+import React, { useEffect, useState } from 'react';
+import { Bell, Clock3 } from 'lucide-react';
+import { collection, doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { db } from '../firebase';
+import { firebaseErrorMessage } from '../utils/firebaseError';
+
+export default function UsersView({currentUid}){
+  const [users,setUsers]=useState([]);const [loading,setLoading]=useState(true);const [toastLocal,setToastLocal]=useState('');
+  useEffect(()=>{const unsub=onSnapshot(collection(db,'usuarios'),snap=>{setUsers(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.nome||'').localeCompare(b.nome||'')));setLoading(false)},err=>{console.error('Erro ao carregar usuários:',err);setToastLocal(firebaseErrorMessage(err,'carregar usuários'));setLoading(false)});return unsub},[]);
+  async function updateUser(user,patch){try{await setDoc(doc(db,'usuarios',user.id),{...user,...patch,updatedAt:new Date().toISOString()},{merge:true});setToastLocal('Usuário atualizado.')}catch(err){setToastLocal(firebaseErrorMessage(err,'atualizar usuário'))}}
+  if(loading)return <section className="report-table-card"><div className="empty"><Clock3 size={38}/><h3>Carregando usuários...</h3></div></section>;
+  return <div className="report-wrap"><section className="report-table-card"><div className="report-title"><div><h2>Usuários e permissões</h2><p>As contas são criadas no Firebase Authentication. Aqui você ativa e define o perfil.</p></div><strong>{users.length} usuário(s)</strong></div><div className="table-scroll"><table className="report-table"><thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Status</th><th>Ação</th></tr></thead><tbody>{users.map(user=><tr key={user.id}><td><strong>{user.nome||'-'}</strong>{user.id===currentUid&&<small>Você</small>}</td><td>{user.email||'-'}</td><td><select value={user.perfil||'tecnico'} disabled={user.id===currentUid} onChange={e=>updateUser(user,{perfil:e.target.value})}><option value="admin">Administrador</option><option value="supervisor">Supervisor</option><option value="tecnico">Técnico</option></select></td><td><span className={`report-status ${user.status==='ativo'?'done':'late'}`}>{user.status==='ativo'?'Ativo':user.status==='inativo'?'Inativo':'Pendente'}</span></td><td><button className="secondary" disabled={user.id===currentUid} onClick={()=>updateUser(user,{status:user.status==='ativo'?'inativo':'ativo'})}>{user.status==='ativo'?'Desativar':'Ativar'}</button></td></tr>)}</tbody></table></div></section>{toastLocal&&<div className="toast"><Bell size={18}/>{toastLocal}</div>}</div>}

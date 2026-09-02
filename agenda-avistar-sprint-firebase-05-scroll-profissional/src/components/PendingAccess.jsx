@@ -1,0 +1,3 @@
+import React from 'react';
+
+export default function PendingAccess({profile,onLogout}){return <div className="login-page"><div className="login-card"><div className="login-brand"><div className="brand-mark">A</div><div><strong>Agenda Avistar</strong><span>ACESSO PENDENTE</span></div></div><div className="login-copy"><h1>Aguardando liberação</h1><p>Seu cadastro foi identificado, mas ainda precisa ser ativado por um administrador.</p></div><div className="sync-help"><strong>{profile?.nome||'Usuário'}</strong><span>{profile?.email}</span><small>Perfil inicial: Técnico · Status: Pendente</small></div><button className="primary login-button" onClick={onLogout}>Sair</button></div></div>}

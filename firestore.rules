@@ -1,0 +1,47 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn(){ return request.auth != null; }
+    function ownUserPath(uid){ return signedIn() && request.auth.uid == uid; }
+    function currentUserExists(){ return signedIn() && exists(/databases/$(database)/documents/usuarios/$(request.auth.uid)); }
+    function currentUser(){ return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)); }
+    function activeUser(){ return currentUserExists() && currentUser().data.status == 'ativo'; }
+    function admin(){ return activeUser() && currentUser().data.perfil == 'admin'; }
+    function supervisor(){ return activeUser() && currentUser().data.perfil == 'supervisor'; }
+    function technician(){ return activeUser() && currentUser().data.perfil == 'tecnico'; }
+    function operationalManager(){ return admin() || supervisor(); }
+    function assignedTechnician(){ return resource.data.technicianUid == request.auth.uid || resource.data.installerEmail == request.auth.token.email; }
+    function supervisorChangedOnlyOperationalFields(){ return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','description','category','responsible','dueDate','dueTime','priority','status','installer','technicianUid','installerEmail','serviceDate','updatedAt','updatedBy','history']); }
+    function technicianChangedOnlyOperationalFields(){ return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','description','technicianNotes','executionChecklist','beforePhotos','afterPhotos','technicianSignature','clientSignature','startedAt','completedAt','updatedAt','updatedBy','history']); }
+
+    match /usuarios/{uid} {
+      allow read: if ownUserPath(uid) || admin() || supervisor();
+      allow create: if ownUserPath(uid) && request.resource.data.email == request.auth.token.email && request.resource.data.perfil == 'tecnico' && request.resource.data.status == 'pendente';
+      allow update: if admin() || (ownUserPath(uid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastLogin']));
+      allow delete: if admin();
+    }
+
+    match /demandas/{demandaId} {
+      allow read: if activeUser() && (admin() || supervisor() || assignedTechnician());
+      allow create: if operationalManager() && request.resource.data.locked == true && request.resource.data.ownerUid == request.auth.uid;
+      allow update: if admin() || (supervisor() && supervisorChangedOnlyOperationalFields()) || (technician() && assignedTechnician() && technicianChangedOnlyOperationalFields());
+      allow delete: if admin();
+    }
+
+    match /clientes/{id} {
+      allow read: if activeUser();
+      allow create, update: if operationalManager();
+      allow delete: if admin();
+    }
+    match /veiculos/{id} {
+      allow read: if activeUser();
+      allow create, update: if operationalManager();
+      allow delete: if admin();
+    }
+    match /equipamentos/{id} {
+      allow read: if activeUser();
+      allow create, update: if operationalManager();
+      allow delete: if admin();
+    }
+  }
+}
